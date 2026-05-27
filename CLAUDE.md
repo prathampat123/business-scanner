@@ -6,7 +6,7 @@ A web-based **Business Scraper & Analyzer** that lets users search for businesse
 **Stack:**
 - **Backend**: Python 3.14 · FastAPI · Uvicorn · BeautifulSoup4 · httpx
 - **Frontend**: Vanilla HTML + Tailwind CSS (CDN) + Alpine.js (CDN) — no build step
-- **Scraping targets**: Yelp, Yellow Pages, (Google Maps via SerpAPI if key provided)
+- **Data sources**: OpenStreetMap/Overpass (default, free, no key), Yelp Fusion API (YELP_API_KEY), Yellow Pages scraper (may be Cloudflare-blocked)
 - **Exports**: CSV, JSON
 
 ---
@@ -24,8 +24,10 @@ business-scanner/
     ├── models.py           ← Pydantic schemas (Business, SearchRequest, …)
     ├── scrapers/
     │   ├── __init__.py
-    │   ├── yelp.py         ← Yelp search scraper
-    │   ├── yellowpages.py  ← Yellow Pages scraper
+    │   ├── osm.py          ← OpenStreetMap/Overpass scraper (default, free)
+    │   ├── yelp_api.py     ← Yelp Fusion API client (needs YELP_API_KEY)
+    │   ├── yelp.py         ← Yelp HTML scraper (fallback, often 403'd)
+    │   ├── yellowpages.py  ← Yellow Pages HTML scraper (often 403'd)
     │   └── enricher.py     ← Merges + deduplicates results
     ├── routes/
     │   ├── __init__.py
@@ -56,6 +58,7 @@ uvicorn app.main:app --reload --port 8000
 ## Environment Variables
 Copy `.env.example` → `.env` and fill in optional keys:
 ```
+YELP_API_KEY=         # Optional: enables Yelp Fusion API (free, 5k calls/day)
 SERPAPI_KEY=          # Optional: enables Google Maps results
 REQUEST_TIMEOUT=15    # Seconds per HTTP request (default 15)
 MAX_RESULTS=50        # Max results per source (default 50)
@@ -97,10 +100,17 @@ class Business(BaseModel):
 ---
 
 ## Development Notes
-- Scrapers use **httpx** (async) with rotating User-Agent strings and polite delays to avoid blocks.
-- The enricher deduplicates by fuzzy-matching `name + address` (Levenshtein distance ≤ 0.15).
-- Session results are stored in-memory (`app.state.results`) — no database required for MVP.
-- The frontend polls `/api/search` via fetch and renders results with Alpine.js reactivity.
+- **Primary source**: OpenStreetMap Overpass API (`osm.py`) — always works, no key required.
+  - Geocodes the location via Nominatim, then queries Overpass QL within the bounding radius.
+  - 30+ keyword→OSM-tag mappings; falls back to Nominatim name search for unknown keywords.
+  - Tries 3 public Overpass mirrors if one is overloaded.
+- **Yelp Fusion API** (`yelp_api.py`) — official REST API, 5,000 free calls/day.
+  - Set `YELP_API_KEY` in `.env` to activate; otherwise falls back to HTML scraper.
+- **HTML scrapers** (`yelp.py`, `yellowpages.py`) — kept for completeness but both sites now
+  return 403 via Cloudflare when accessed server-side. May work from some IPs.
+- The enricher deduplicates by fuzzy-matching `name + city` (rapidfuzz WRatio ≥ 88).
+- Session results are stored in-memory (`app.state.last_results`) — no database required for MVP.
+- The frontend renders results with Alpine.js reactivity; live filter + sort client-side.
 
 ---
 
@@ -125,3 +135,4 @@ python run.py
 | 2026-05-26 | Frontend SPA: Tailwind CDN + Alpine.js, search form, results grid, export buttons |
 | 2026-05-26 | Fixed Python 3.14 compat: replaced lxml → html.parser, relaxed pydantic pin |
 | 2026-05-26 | README with quickstart, API reference, project structure, config table |
+| 2026-05-27 | Fix: Yelp/YP return 403 (Cloudflare); replaced with OSM Overpass API + Yelp Fusion API client |
