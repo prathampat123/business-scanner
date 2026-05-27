@@ -101,7 +101,7 @@ class YellowPagesScraper:
 
     def _parse_page(self, html: str) -> list[Business]:
         """Extract business listings from a Yellow Pages SERP page."""
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "html.parser")
         businesses: list[Business] = []
 
         # Primary container for organic listings

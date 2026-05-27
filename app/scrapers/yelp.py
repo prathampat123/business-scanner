@@ -110,7 +110,7 @@ class YelpScraper:
 
     def _parse_page(self, html: str) -> list[Business]:
         """Extract business cards from a Yelp SERP page."""
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "html.parser")
         businesses: list[Business] = []
 
         # Yelp renders results inside <li> tags with data-testid or aria-label

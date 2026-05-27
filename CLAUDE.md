@@ -104,7 +104,24 @@ class Business(BaseModel):
 
 ---
 
+## Python 3.14 Compatibility Notes
+- `lxml` has **no pre-built wheels for Python 3.14** — use `html.parser` (stdlib) in all `BeautifulSoup(html, ...)` calls.
+- `pydantic-core` v2.13.4+ ships Python 3.14 wheels — install without strict pins (`pydantic>=2.0.0`).
+- `uvicorn[standard]` installs fine; `websockets` binary may warn about PATH — harmless.
+
+## Running in Dev
+```bash
+python run.py
+# FastAPI auto-reload enabled; edits to app/ restart the server automatically.
+# API docs live at http://localhost:8000/docs
+```
+
 ## Changelog
 | Date | What changed |
 |------|-------------|
-| 2026-05-26 | Initial scaffold: models, scrapers (Yelp, YP), routes, frontend |
+| 2026-05-26 | Initial scaffold: CLAUDE.md, requirements, .env.example, .gitignore, run.py |
+| 2026-05-26 | Backend core: Pydantic models, Yelp scraper, Yellow Pages scraper, Enricher |
+| 2026-05-26 | FastAPI routes: POST /api/search, GET /api/export/{csv,json}, GET /api/health |
+| 2026-05-26 | Frontend SPA: Tailwind CDN + Alpine.js, search form, results grid, export buttons |
+| 2026-05-26 | Fixed Python 3.14 compat: replaced lxml → html.parser, relaxed pydantic pin |
+| 2026-05-26 | README with quickstart, API reference, project structure, config table |
