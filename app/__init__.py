@@ -1,0 +1,1 @@
+"""Business Scanner application package."""
