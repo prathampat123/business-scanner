@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Scanner</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#eff6ff', 100:'#dbeafe', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Alpine.js CDN -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+    .spinner {
+      border: 3px solid #e5e7eb;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      width: 1.25rem; height: 1.25rem;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .star-filled  { color: #f59e0b; }
+    .star-empty   { color: #d1d5db; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+
+<body class="h-full font-sans text-gray-800" x-data="app()" x-init="init()">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <svg class="w-7 h-7 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <span class="text-xl font-bold text-brand-700 tracking-tight">Business Scanner</span>
+      <span class="ml-auto text-xs text-gray-400">scrape · enrich · export</span>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- ── Search card ─────────────────────────────────────────────────── -->
+    <section class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h2 class="text-lg font-semibold mb-4 text-gray-700">Search Businesses</h2>
+
+      <form @submit.prevent="runSearch" class="space-y-4">
+
+        <!-- Query + location row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Business type / keyword</label>
+            <input
+              x-model="form.query"
+              type="text" placeholder="e.g. pizza restaurants, dentists, plumbers …"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
+                     placeholder:text-gray-400"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Location</label>
+            <input
+              x-model="form.location"
+              type="text" placeholder="e.g. New York, NY  |  Chicago, IL"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
+                     placeholder:text-gray-400"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- Sources + max results row -->
+        <div class="flex flex-wrap gap-6 items-end">
+          <div>
+            <span class="block text-sm font-medium text-gray-600 mb-2">Sources</span>
+            <div class="flex gap-4">
+              <label class="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" x-model="form.sources" value="yelp"
+                       class="rounded border-gray-300 text-brand-500 focus:ring-brand-500"/>
+                <span class="font-medium text-red-500">Yelp</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" x-model="form.sources" value="yellowpages"
+                       class="rounded border-gray-300 text-brand-500 focus:ring-brand-500"/>
+                <span class="font-medium text-yellow-600">Yellow Pages</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">
+              Max results <span class="text-gray-400 font-normal">(per source)</span>
+            </label>
+            <select x-model.number="form.max_results"
+                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="loading || form.sources.length === 0"
+            class="ml-auto px-6 py-2 rounded-lg bg-brand-500 hover:bg-brand-600
+                   text-white font-semibold text-sm transition disabled:opacity-50
+                   disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <span x-show="loading" class="spinner"></span>
+            <svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <span x-text="loading ? 'Scanning…' : 'Search'"></span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ── Error banner ────────────────────────────────────────────────── -->
+    <div x-show="error" x-cloak x-transition class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-5 py-3 text-sm flex gap-3 items-start">
+      <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span x-text="error"></span>
+    </div>
+
+    <!-- ── Results section ─────────────────────────────────────────────── -->
+    <section x-show="results.length > 0" x-cloak x-transition>
+
+      <!-- Toolbar -->
+      <div class="flex flex-wrap gap-3 items-center mb-4">
+        <div>
+          <span class="text-sm font-semibold text-gray-700" x-text="`${results.length} businesses found`"></span>
+          <span class="text-xs text-gray-400 ml-2"
+                x-text="`for &quot;${lastQuery}&quot; in ${lastLocation} · ${durationMs}ms`"></span>
+        </div>
+
+        <!-- Filter input -->
+        <input
+          x-model="filterText"
+          type="text" placeholder="Filter by name, category, city…"
+          class="ml-auto rounded-lg border border-gray-300 px-3 py-1.5 text-sm
+                 focus:outline-none focus:ring-2 focus:ring-brand-500 w-56"
+        />
+
+        <!-- Sort -->
+        <select x-model="sortKey"
+                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="rating">Sort: Rating ↓</option>
+          <option value="reviews">Sort: Reviews ↓</option>
+          <option value="name">Sort: Name A–Z</option>
+        </select>
+
+        <!-- Export buttons -->
+        <button @click="exportData('csv')"
+                class="px-3 py-1.5 rounded-lg border border-green-400 text-green-700
+                       hover:bg-green-50 text-sm font-medium transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/>
+          </svg>
+          CSV
+        </button>
+        <button @click="exportData('json')"
+                class="px-3 py-1.5 rounded-lg border border-blue-400 text-blue-700
+                       hover:bg-blue-50 text-sm font-medium transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/>
+          </svg>
+          JSON
+        </button>
+      </div>
+
+      <!-- Results grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <template x-for="biz in filtered" :key="biz.id">
+          <article class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3 fade-in hover:shadow-md transition">
+
+            <!-- Name + source badge -->
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold text-gray-900 leading-snug" x-text="biz.name"></h3>
+              <span :class="sourceBadge(biz.source)"
+                    class="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                    x-text="biz.source"></span>
+            </div>
+
+            <!-- Stars + review count -->
+            <div x-show="biz.rating" class="flex items-center gap-1.5">
+              <div class="flex">
+                <template x-for="n in 5" :key="n">
+                  <svg :class="n <= Math.round(biz.rating) ? 'star-filled' : 'star-empty'"
+                       class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                </template>
+              </div>
+              <span class="text-sm font-medium text-gray-700" x-text="biz.rating?.toFixed(1)"></span>
+              <span x-show="biz.review_count" class="text-xs text-gray-400"
+                    x-text="`(${biz.review_count?.toLocaleString()} reviews)`"></span>
+            </div>
+
+            <!-- Meta pills -->
+            <div class="flex flex-wrap gap-1.5">
+              <span x-show="biz.category"
+                    class="inline-flex items-center text-xs bg-gray-100 text-gray-600 rounded-full px-2.5 py-0.5"
+                    x-text="biz.category"></span>
+              <span x-show="biz.city"
+                    class="inline-flex items-center text-xs bg-blue-50 text-blue-600 rounded-full px-2.5 py-0.5"
+                    x-text="[biz.city, biz.state].filter(Boolean).join(', ')"></span>
+            </div>
+
+            <!-- Contact info -->
+            <div class="space-y-1 text-sm text-gray-600">
+              <div x-show="biz.address" class="flex items-start gap-1.5">
+                <svg class="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/>
+                </svg>
+                <span x-text="biz.address"></span>
+              </div>
+              <div x-show="biz.phone" class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.06 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/>
+                </svg>
+                <a :href="'tel:' + biz.phone" class="hover:text-brand-600 transition" x-text="biz.phone"></a>
+              </div>
+              <div x-show="biz.website" class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <a :href="biz.website" target="_blank" rel="noopener"
+                   class="hover:text-brand-600 transition truncate max-w-[200px]"
+                   x-text="biz.website?.replace(/^https?:\/\//, '')"></a>
+              </div>
+            </div>
+
+            <!-- Source link -->
+            <div x-show="biz.source_url" class="pt-1 border-t border-gray-50">
+              <a :href="biz.source_url" target="_blank" rel="noopener"
+                 class="text-xs text-brand-500 hover:text-brand-700 transition font-medium">
+                View on source ↗
+              </a>
+            </div>
+
+          </article>
+        </template>
+      </div>
+
+      <!-- Empty filter state -->
+      <p x-show="filtered.length === 0 && results.length > 0" x-cloak
+         class="text-center text-gray-400 text-sm py-10">
+        No results match your filter.
+      </p>
+    </section>
+
+    <!-- ── Empty state ─────────────────────────────────────────────────── -->
+    <div x-show="!loading && results.length === 0 && !error" x-cloak
+         class="text-center py-20 text-gray-400">
+      <svg class="w-16 h-16 mx-auto mb-4 text-gray-200" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <p class="text-lg font-medium">Search for businesses to get started</p>
+      <p class="text-sm mt-1">Enter a keyword and location above, then click Search.</p>
+    </div>
+
+  </main>
+
+  <!-- ── Footer ──────────────────────────────────────────────────────────── -->
+  <footer class="mt-16 border-t border-gray-200 py-6 text-center text-xs text-gray-400">
+    Business Scanner &nbsp;·&nbsp; Data sourced from Yelp &amp; Yellow Pages &nbsp;·&nbsp;
+    <a href="/docs" class="hover:text-brand-500 transition">API Docs</a>
+  </footer>
+
+  <!-- ── Alpine app logic ─────────────────────────────────────────────────── -->
+  <script>
+    function app() {
+      return {
+        // ── form state ───────────────────────────────────────────────────
+        form: {
+          query: '',
+          location: '',
+          sources: ['yelp', 'yellowpages'],
+          max_results: 20,
+        },
+
+        // ── result state ─────────────────────────────────────────────────
+        results: [],
+        loading: false,
+        error: null,
+        lastQuery: '',
+        lastLocation: '',
+        durationMs: 0,
+
+        // ── filter / sort ────────────────────────────────────────────────
+        filterText: '',
+        sortKey: 'rating',
+
+        // ── computed ─────────────────────────────────────────────────────
+        get filtered() {
+          let list = [...this.results]
+
+          if (this.filterText.trim()) {
+            const q = this.filterText.toLowerCase()
+            list = list.filter(b =>
+              (b.name       || '').toLowerCase().includes(q) ||
+              (b.category   || '').toLowerCase().includes(q) ||
+              (b.city       || '').toLowerCase().includes(q) ||
+              (b.address    || '').toLowerCase().includes(q)
+            )
+          }
+
+          if (this.sortKey === 'rating') {
+            list.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+          } else if (this.sortKey === 'reviews') {
+            list.sort((a, b) => (b.review_count || 0) - (a.review_count || 0))
+          } else if (this.sortKey === 'name') {
+            list.sort((a, b) => a.name.localeCompare(b.name))
+          }
+
+          return list
+        },
+
+        // ── methods ──────────────────────────────────────────────────────
+        init() {
+          // pre-fill from URL query params if present
+          const params = new URLSearchParams(window.location.search)
+          if (params.get('q'))        this.form.query    = params.get('q')
+          if (params.get('location')) this.form.location = params.get('location')
+        },
+
+        async runSearch() {
+          if (this.form.sources.length === 0) {
+            this.error = 'Please select at least one source.'
+            return
+          }
+          this.loading = true
+          this.error   = null
+          this.results = []
+
+          try {
+            const res = await fetch('/api/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.form),
+            })
+
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ detail: res.statusText }))
+              throw new Error(err.detail || `HTTP ${res.status}`)
+            }
+
+            const data = await res.json()
+            this.results      = data.results
+            this.lastQuery    = data.query
+            this.lastLocation = data.location
+            this.durationMs   = data.duration_ms
+
+            if (this.results.length === 0) {
+              this.error = 'No results found. Try a different search or location.'
+            }
+          } catch (e) {
+            this.error = `Search failed: ${e.message}`
+          } finally {
+            this.loading = false
+          }
+        },
+
+        async exportData(format) {
+          try {
+            const res = await fetch(`/api/export/${format}`)
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ detail: res.statusText }))
+              throw new Error(err.detail || `HTTP ${res.status}`)
+            }
+            const blob = await res.blob()
+            const url  = URL.createObjectURL(blob)
+            const a    = document.createElement('a')
+
+            // Extract filename from Content-Disposition header
+            const cd   = res.headers.get('Content-Disposition') || ''
+            const match = cd.match(/filename="?([^"]+)"?/)
+            a.download = match ? match[1] : `businesses.${format}`
+            a.href = url
+            a.click()
+            URL.revokeObjectURL(url)
+          } catch (e) {
+            this.error = `Export failed: ${e.message}`
+          }
+        },
+
+        sourceBadge(source) {
+          const map = {
+            yelp:        'bg-red-100 text-red-700',
+            yellowpages: 'bg-yellow-100 text-yellow-700',
+            google_maps: 'bg-green-100 text-green-700',
+            unknown:     'bg-gray-100 text-gray-500',
+          }
+          return map[source] || map.unknown
+        },
+      }
+    }
+  </script>
+</body>
+</html>
