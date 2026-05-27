@@ -29,7 +29,7 @@ class Business(BaseModel):
     rating: float | None = Field(default=None, ge=0, le=5)
     review_count: int | None = Field(default=None, ge=0)
     category: str | None = None
-    source: Literal["yelp", "yellowpages", "google_maps", "unknown"] = "unknown"
+    source: Literal["yelp", "yellowpages", "google_maps", "openstreetmap", "unknown"] = "unknown"
     source_url: str | None = None
     scraped_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -57,7 +57,7 @@ class Business(BaseModel):
 # Request / response schemas
 # ──────────────────────────────────────────────────────────────────────────────
 
-SourceName = Literal["yelp", "yellowpages", "google_maps"]
+SourceName = Literal["yelp", "yellowpages", "google_maps", "openstreetmap"]
 
 
 class SearchRequest(BaseModel):

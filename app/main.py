@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "REQUEST_TIMEOUT": os.getenv("REQUEST_TIMEOUT", "15"),
         "MAX_RESULTS": os.getenv("MAX_RESULTS", "50"),
         "SERPAPI_KEY": os.getenv("SERPAPI_KEY", ""),
+        "YELP_API_KEY": os.getenv("YELP_API_KEY", ""),
     }
     app.state.last_results = []
     app.state.last_query = ""
